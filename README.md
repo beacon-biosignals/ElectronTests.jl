@@ -42,7 +42,7 @@ function test_handler(session, req)
     return DOM.div(dom, id="testapp")
 end
 
-testsession(test_handler, port=8666) do app
+testsession(test_handler) do app
     @test runjs(app, js"document.getElementById('testapp').children.length") == 1
     @test runjs(app, js"document.getElementById('testapp').children[0].children[0].innerText") == "IS THIS REAL?"
     @test runjs(app, js"document.querySelectorAll('input[type=\"button\"]').length") == 1
