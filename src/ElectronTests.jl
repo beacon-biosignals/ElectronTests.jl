@@ -47,6 +47,7 @@ function TestSession(handler; url="0.0.0.0", port=8081, timeout=10)
         testapp.window = Window(testapp.application, URI(testapp.url))
         answer = take!(serve_comm)
         if answer !== :done
+            close(testapp)
             # we encountered an error while serving test app
             throw(answer)
         end
