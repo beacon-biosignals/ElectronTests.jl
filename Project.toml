@@ -1,0 +1,13 @@
+name = "ElectronTests"
+uuid = "fa9e6d27-338f-4c48-a526-3b082c2df35e"
+authors = ["Simon Danisch", "Beacon Biosignals"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
