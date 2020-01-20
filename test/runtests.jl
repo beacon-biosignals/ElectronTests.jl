@@ -31,7 +31,7 @@ function test_handler(session, req)
     return DOM.div(dom, id="testapp")
 end
 
-testsession(test_handler, port=8777) do app
+testsession(test_handler) do app
     @test evaljs(app, js"document.getElementById('testapp').children.length") == 1
     @test evaljs(app, js"document.getElementById('testapp').children[0].children[0].innerText") == "IS THIS REAL?"
     @test evaljs(app, js"document.querySelectorAll('input[type=\"button\"]').length") == 1

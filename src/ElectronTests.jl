@@ -187,7 +187,7 @@ function Base.close(testsession::TestSession)
         # see: https://github.com/JuliaWeb/HTTP.jl/pull/494
         JSServe.HTTP.get(string(testsession.url), readtimeout=3, retries=1)
     catch e
-        if e isa JSServe.HTTP.IOError && e.e == Base.IOError("connect: connection refused (ECONNREFUSED)", -4078)
+        if e isa JSServe.HTTP.IOError && e.e isa Base.IOError
             # Huh, so this actually did close things correctly
         else
             rethrow(e)
