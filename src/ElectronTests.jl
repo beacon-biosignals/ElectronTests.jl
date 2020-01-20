@@ -3,7 +3,7 @@ module ElectronTests
 using Electron, JSServe, URIParser
 using JSServe.HTTP: Request
 using JSServe: Session, JSObject, jsobject, Dependency, @js_str, JSCode
-import JSServe: start
+import JSServe: start, evaljs
 using JSServe.Hyperscript: Node, HTMLSVG
 using JSServe.DOM
 using Base: RefValue
@@ -200,17 +200,17 @@ function Base.close(testsession::TestSession)
 end
 
 """
-    runjs(testsession::TestSession, js::JSCode)
+    evaljs(testsession::TestSession, js::JSCode)
 Runs javascript code `js` in testsession.
 Will return the return value of `js`. Might return garbage data, if return value
 isn't json serializable.
 
 Example:
 ```julia
-runjs(testsession, js"document.getElementById('the-id')")
+evaljs(testsession, js"document.getElementById('the-id')")
 ```
 """
-function runjs(testsession::TestSession, js::JSCode)
+function evaljs(testsession::TestSession, js::JSCode)
     JSServe.evaljs_value(testsession.session, js)
 end
 
@@ -245,5 +245,8 @@ found in the DOM.
 function trigger_mouse_move(testsession::TestSession, position::Tuple{Int, Int}, element=nothing)
     testsession.js_library.trigger_mouse_move(code, position, element)
 end
+
+
+export @wait_for, evaljs, testsession, trigger_keyboard_press, trigger_mouse_move
 
 end # module
