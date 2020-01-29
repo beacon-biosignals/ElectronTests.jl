@@ -54,11 +54,19 @@ function TestSession(handler; url="0.0.0.0", port=8081, timeout=10)
             testsession.dom = dom
             testsession.session = session
             testsession.request = request
-            # Add our testing js library
-            put!(testsession.serve_comm, :done)
+            # only put if we're not initialized
+            # Otherwise, new request will block indefinitely
+            # without a consumer
+            if !testsession.initialized
+                put!(testsession.serve_comm, :done)
+            end
             return DOM.div(JSTest, dom)
         catch e
-            put!(testsession.serve_comm, e)
+            if !testsession.initialized
+                put!(testsession.serve_comm, e)
+            else
+                rethrow(e)
+            end
         end
     end
     try
@@ -134,8 +142,8 @@ end
 Reloads the served application and waits untill all state is initialized.
 """
 function reload!(testsession::TestSession)
-    Electron.load(testsession.window, testsession.url)
     testsession.initialized = false
+    Electron.load(testsession.window, testsession.url)
     wait(testsession)
     # Now everything is loaded and setup! At this point, we can get references to JS
     # Objects in the browser!
@@ -180,6 +188,7 @@ function Base.close(testsession::TestSession)
             testsession.initialized = false
         end
     catch e
+        Base.showerror(stderr, e)
         # TODO why does this error on travis? Possibly linux in general
     end
     try
@@ -227,6 +236,10 @@ macro wait_for(condition)
     end
 end
 
+function JSServe.jsobject(testsession::TestSession, js)
+    return jsobject(testsession.session, js)
+end
+
 """
     trigger_keyboard_press(testsession::TestSession, code::String, element=nothing)
 Triggers a keyboard press on `element`! If element is `nothing`, the event will be
@@ -246,7 +259,22 @@ function trigger_mouse_move(testsession::TestSession, position::Tuple{Int, Int},
     testsession.js_library.trigger_mouse_move(position, element)
 end
 
+"""
+    query_testid(id::String)
+Returns a js string, that queries for `id`.
+"""
+function query_testid(id::String)
+    js"document.querySelector('[data-test-id=$(id)]')"
+end
 
-export @wait_for, evaljs, testsession, trigger_keyboard_press, trigger_mouse_move
+"""
+    query_testid(testsession::TestSession, id::String)
+Returns a JSObject representing the object found for `id`.
+"""
+function query_testid(testsession::TestSession, id::String)
+    return jsobject(testsession, query_testid(id))
+end
+
+export @wait_for, evaljs, testsession, trigger_keyboard_press, trigger_mouse_move, query_testid
 
 end # module
