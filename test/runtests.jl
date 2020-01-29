@@ -9,7 +9,7 @@ function test_handler(session, req)
     s2 = Slider(1:100)
     b = Button("hi")
     t = TextField("Write!")
-
+    bla = DOM.div("this is test!", dataTestId="test")
     linkjs(session, s1.value, s2.value)
 
 
@@ -27,6 +27,10 @@ function test_handler(session, req)
     Type something for the list: $(t)
 
     some list $(t.value)
+
+    ## More test:
+
+    $(bla)
     """
     return DOM.div(dom, id="testapp")
 end
@@ -39,4 +43,6 @@ testsession(test_handler) do app
     trigger_keyboard_press(app, "KeyRight")
     trigger_mouse_move(app, (0, 0))
     @wait_for 1 == 1
+    test = query_testid(app, "test")
+    @test evaljs(app, js"$(test).innerText") == "this is test!"
 end
