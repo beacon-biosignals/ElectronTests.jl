@@ -37,5 +37,6 @@ testsession(test_handler) do app
     @test evaljs(app, js"document.querySelectorAll('input[type=\"button\"]').length") == 1
     @test evaljs(app, js"document.querySelectorAll('input[type=\"range\"]').length") == 2
     trigger_keyboard_press(app, "KeyRight")
+    trigger_mouse_move(app, (0, 0))
     @wait_for 1 == 1
 end

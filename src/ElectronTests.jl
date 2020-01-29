@@ -53,7 +53,7 @@ function TestSession(handler; url="0.0.0.0", port=8081, timeout=10)
             dom = handler(session, request)
             testsession.dom = dom
             testsession.session = session
-            # testsession.request = request
+            testsession.request = request
             # Add our testing js library
             put!(testsession.serve_comm, :done)
             return DOM.div(JSTest, dom)
@@ -243,7 +243,7 @@ Triggers a MouseMove event! If element == nothing, it will try to trigger on any
 found in the DOM.
 """
 function trigger_mouse_move(testsession::TestSession, position::Tuple{Int, Int}, element=nothing)
-    testsession.js_library.trigger_mouse_move(code, position, element)
+    testsession.js_library.trigger_mouse_move(position, element)
 end
 
 
