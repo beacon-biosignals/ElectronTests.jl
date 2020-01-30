@@ -145,7 +145,7 @@ function wait(testsession::TestSession; timeout=10)
         # Session must be loaded because we wait in take! untill we got served!
         # We don't use wait(js_fully_loaded), since we can't interrupt that.
         # Instead we wait for event.set to become true!
-        testsession.session.js_fully_loaded.set && break
+        isready(testsession.session.js_fully_loaded) && break
         sleep(0.001) # welp, now, because we can't use wait, we need to use sleep-.-
     end
     testsession.initialized = true
