@@ -36,13 +36,20 @@ mutable struct TestSession
     server::JSServe.Application
     application::Electron.Application
     window::Electron.Window
-    dom::Node{HTMLSVG}
     session::Session
+    dom::Node{HTMLSVG}
     request::Request
     # Library to run test commands
     js_library::JSObject
+
     function TestSession(url::URI)
         return new(url, Channel(1), false)
+    end
+
+    function TestSession(url::URI, server::JSServe.Application, window::Electron.Window, session::Session)
+        testsession = new(url, Channel(1), true, server, window.app, window, session)
+        testsession.js_library = jsobject(session, js"$JSTest")
+        return testsession
     end
 end
 
@@ -113,6 +120,17 @@ function wait(testsession::TestSession; timeout=10)
     if !testsession.window.exists
         error("Window isn't open, can't wait for testsession to be initialized")
     end
+    while testsession.window.exists
+        isready(testsession.serve_comm) && break
+        # Again, we need to sleep instead of just waiting on `take!`
+        # But if we don't do this, on an error in serving, we'd wait indefinitely
+        # even if the window gets closed...And since Julia can't deal with interrupting
+        # Wait, that'd mean killing Julia completely
+        sleep(0.01)
+    end
+    if !isready(testsession.serve_comm)
+        error("Window closed before getting a message from serving request")
+    end
     answer = take!(testsession.serve_comm)
     if answer !== :done
         close(testsession)
@@ -134,7 +152,15 @@ function wait(testsession::TestSession; timeout=10)
     return true
 end
 
-
+function check_and_close_display()
+    # For some reason, when running code in Atom, it happens very easily,
+    # That JSServe display server gets started!
+    # Maybe better to PR an option in JSServe to prohibit starting it in the first place
+    if isassigned(JSServe.global_application) && JSServe.isrunning(JSServe.global_application[])
+        @warn "closing JSServe display server, which interfers with testing!"
+        close(JSServe.global_application[])
+    end
+end
 
 """
     reload!(testsession::TestSession)
@@ -142,6 +168,7 @@ end
 Reloads the served application and waits untill all state is initialized.
 """
 function reload!(testsession::TestSession)
+    check_and_close_display()
     testsession.initialized = false
     Electron.load(testsession.window, testsession.url)
     wait(testsession)
@@ -158,6 +185,7 @@ Start the testsession and make sure everything is loaded correctly.
 Will close all connections, if any error occurs!
 """
 function JSServe.start(testsession::TestSession)
+    check_and_close_display()
     try
         if !JSServe.isrunning(testsession.server)
             start(testsession.server)
@@ -219,6 +247,9 @@ Example:
 evaljs(testsession, js"document.getElementById('the-id')")
 ```
 """
+function evaljs(testsession::TestSession, js::Union{JSCode, JSObject})
+    JSServe.evaljs_value(testsession.session, js)
+end
 function evaljs(testsession::TestSession, js::JSCode)
     JSServe.evaljs_value(testsession.session, js)
 end
