@@ -76,10 +76,8 @@ function TestSession(handler; url="0.0.0.0", port=8081, timeout=10)
             testsession.error_in_handler = (e, Base.catch_backtrace())
         end
     end
-    println("started server")
     try
         start(testsession)
-        println("strated")
         return testsession
     catch e
         close(testsession)
@@ -159,7 +157,6 @@ function reload!(testsession::TestSession)
     @assert JSServe.isrunning(testsession.server)
     response = JSServe.HTTP.get(string(testsession.url), readtimeout=3, retries=1)
     @assert response.status == 200
-    println("ok, pretty sure server is running, loading now!")
     testsession.initialized = false
     testsession.error_in_handler = nothing
     Electron.load(testsession.window, testsession.url)
@@ -184,7 +181,8 @@ function JSServe.start(testsession::TestSession)
             start(testsession.server)
         end
         if !isdefined(testsession, :window) || !testsession.window.exists
-            testsession.window = Window()
+            app = Electron.Application()
+            testsession.window = Window(app)
         end
         reload!(testsession)
     catch e
@@ -240,6 +238,7 @@ evaljs(testsession, js"document.getElementById('the-id')")
 function evaljs(testsession::TestSession, js::Union{JSCode, JSObject})
     JSServe.evaljs_value(testsession.session, js)
 end
+
 function evaljs(testsession::TestSession, js::JSCode)
     JSServe.evaljs_value(testsession.session, js)
 end
