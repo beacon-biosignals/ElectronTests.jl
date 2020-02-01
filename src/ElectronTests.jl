@@ -46,7 +46,7 @@ mutable struct TestSession
     end
 
     function TestSession(url::URI, server::JSServe.Application, window::Electron.Window, session::Session)
-        testsession = new(url, nothing, true, server, window, session)
+        testsession = new(url, true, nothing, server, window, session)
         testsession.js_library = jsobject(session, js"$JSTest")
         return testsession
     end
@@ -210,7 +210,7 @@ function Base.close(testsession::TestSession)
     try
         # First request after close will still go through
         # see: https://github.com/JuliaWeb/HTTP.jl/pull/494
-        JSServe.HTTP.get(string(testsession.url), readtimeout=3, retries=1)
+        JSServe.HTTP.get(string(testsession.url))
     catch e
         if e isa JSServe.HTTP.IOError && e.e isa Base.IOError
             # Huh, so this actually did close things correctly
