@@ -122,7 +122,7 @@ function wait(testsession::TestSession; timeout=10)
     end
     while testsession.window.exists
         # We done!
-        isopen(testsession.session) && break
+        isdefined(testsession, :session) && isopen(testsession.session) && break
         if testsession.error_in_handler !== nothing
             e, backtrace = testsession.error_in_handler
             Base.show_backtrace(stderr, backtrace)
@@ -219,7 +219,7 @@ function Base.close(testsession::TestSession)
         end
     finally
         if isdefined(testsession, :window)
-            close(testsession.window.app)
+            testsession.window.app.exists && close(testsession.window.app)
             testsession.window.exists && close(testsession.window)
         end
     end
