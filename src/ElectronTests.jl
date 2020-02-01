@@ -31,10 +31,9 @@ and get values from the html dom!
 """
 mutable struct TestSession
     url::URI
-    serve_comm::Channel{Any}
     initialized::Bool
+    error_in_handler::Any
     server::JSServe.Application
-    application::Electron.Application
     window::Electron.Window
     session::Session
     dom::Node{HTMLSVG}
@@ -43,17 +42,28 @@ mutable struct TestSession
     js_library::JSObject
 
     function TestSession(url::URI)
-        return new(url, Channel(1), false)
+        return new(url, false, nothing)
     end
 
     function TestSession(url::URI, server::JSServe.Application, window::Electron.Window, session::Session)
-        testsession = new(url, Channel(1), true, server, window.app, window, session)
+        testsession = new(url, nothing, true, server, window, session)
         testsession.js_library = jsobject(session, js"$JSTest")
         return testsession
     end
 end
 
+function check_and_close_display()
+    # For some reason, when running code in Atom, it happens very easily,
+    # That JSServe display server gets started!
+    # Maybe better to PR an option in JSServe to prohibit starting it in the first place
+    if isassigned(JSServe.global_application) && JSServe.isrunning(JSServe.global_application[])
+        @warn "closing JSServe display server, which interfers with testing!"
+        close(JSServe.global_application[])
+    end
+end
+
 function TestSession(handler; url="0.0.0.0", port=8081, timeout=10)
+    check_and_close_display()
     testsession = TestSession(URI(string("http://localhost:", port)))
     testsession.server = JSServe.Application(url, port) do session, request
         try
@@ -61,19 +71,9 @@ function TestSession(handler; url="0.0.0.0", port=8081, timeout=10)
             testsession.dom = dom
             testsession.session = session
             testsession.request = request
-            # only put if we're not initialized
-            # Otherwise, new request will block indefinitely
-            # without a consumer
-            if !testsession.initialized
-                put!(testsession.serve_comm, :done)
-            end
             return DOM.div(JSTest, dom)
         catch e
-            if !testsession.initialized
-                put!(testsession.serve_comm, e)
-            else
-                rethrow(e)
-            end
+            testsession.error_in_handler = (e, Base.catch_backtrace())
         end
     end
     try
@@ -121,45 +121,27 @@ function wait(testsession::TestSession; timeout=10)
         error("Window isn't open, can't wait for testsession to be initialized")
     end
     while testsession.window.exists
-        isready(testsession.serve_comm) && break
+        # We done!
+        isopen(testsession.session) && break
+        if testsession.error_in_handler !== nothing
+            e, backtrace = testsession.error_in_handler
+            Base.show_backtrace(stderr, backtrace)
+            throw(e)
+        end
         # Again, we need to sleep instead of just waiting on `take!`
         # But if we don't do this, on an error in serving, we'd wait indefinitely
         # even if the window gets closed...And since Julia can't deal with interrupting
         # Wait, that'd mean killing Julia completely
         sleep(0.01)
     end
-    if !isready(testsession.serve_comm)
+    if !isopen(testsession.session)
         error("Window closed before getting a message from serving request")
     end
-    answer = take!(testsession.serve_comm)
-    if answer !== :done
-        close(testsession)
-        # we encountered an error while serving test testsession
-        throw(answer)
-    end
     tstart = time()
-    while true
-        if time() - tstart > timeout
-            error("Timed out when waiting for JS to being loaded! Likely an error happend on the JS side, or your testsession is taking longer than $(timeout) seconds. If no error in console, try increasing timeout!")
-        end
-        # Session must be loaded because we wait in take! untill we got served!
-        # We don't use wait(js_fully_loaded), since we can't interrupt that.
-        # Instead we wait for event.set to become true!
-        isready(testsession.session.js_fully_loaded) && break
-        sleep(0.001) # welp, now, because we can't use wait, we need to use sleep-.-
-    end
+    on_timeout = "Timed out when waiting for JS to being loaded! Likely an error happend on the JS side, or your testsession is taking longer than $(timeout) seconds. If no error in console, try increasing timeout!"
+    JSServe.wait_timeout(()->isready(testsession.session.js_fully_loaded), on_timeout, timeout)
     testsession.initialized = true
     return true
-end
-
-function check_and_close_display()
-    # For some reason, when running code in Atom, it happens very easily,
-    # That JSServe display server gets started!
-    # Maybe better to PR an option in JSServe to prohibit starting it in the first place
-    if isassigned(JSServe.global_application) && JSServe.isrunning(JSServe.global_application[])
-        @warn "closing JSServe display server, which interfers with testing!"
-        close(JSServe.global_application[])
-    end
 end
 
 """
@@ -169,9 +151,17 @@ Reloads the served application and waits untill all state is initialized.
 """
 function reload!(testsession::TestSession)
     check_and_close_display()
+    testsession.initialized = true # we need to put it to true, otherwise handler will block!
+    # Make 100% sure we're serving something,
+    # since otherwise, well block forever
+    @assert JSServe.isrunning(testsession.server)
+    response = JSServe.HTTP.get(string(testsession.url), readtimeout=3, retries=1)
+    @assert response.status == 200
     testsession.initialized = false
+    testsession.error_in_handler = nothing
     Electron.load(testsession.window, testsession.url)
     wait(testsession)
+    @assert testsession.initialized
     # Now everything is loaded and setup! At this point, we can get references to JS
     # Objects in the browser!
     testsession.js_library = jsobject(testsession.session, js"$JSTest")
@@ -190,11 +180,9 @@ function JSServe.start(testsession::TestSession)
         if !JSServe.isrunning(testsession.server)
             start(testsession.server)
         end
-        if !isdefined(testsession, :application)
-            testsession.application = Electron.Application()
-        end
         if !isdefined(testsession, :window) || !testsession.window.exists
-            testsession.window = Window(testsession.application)
+            app = Electron.Application()
+            testsession.window = Window(app)
         end
         reload!(testsession)
     catch e
@@ -250,6 +238,7 @@ evaljs(testsession, js"document.getElementById('the-id')")
 function evaljs(testsession::TestSession, js::Union{JSCode, JSObject})
     JSServe.evaljs_value(testsession.session, js)
 end
+
 function evaljs(testsession::TestSession, js::JSCode)
     JSServe.evaljs_value(testsession.session, js)
 end
