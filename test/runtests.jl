@@ -4,62 +4,66 @@ using JSServe.DOM
 using Test
 using Markdown
 
-function test_handler(session, req)
-    s1 = Slider(1:100)
-    s2 = Slider(1:100)
-    b = Button("hi")
-    t = TextField("Write!")
-    bla = DOM.div("this is test!", dataTestId="test")
-    linkjs(session, s1.value, s2.value)
-    canvas = DOM.um("canvas", height="100", width="100")
+@testset "ElectronTests" begin
 
-    dom = md"""
-    # IS THIS REAL?
+    function test_handler(session, req)
+        s1 = Slider(1:100)
+        s2 = Slider(1:100)
+        b = Button("hi")
+        t = TextField("Write!")
+        bla = DOM.div("this is test!", dataTestId="test")
+        linkjs(session, s1.value, s2.value)
+        canvas = DOM.um("canvas", height="100", width="100")
 
-    My first slider: $(s1)
+        dom = md"""
+        # IS THIS REAL?
 
-    My second slider: $(s2)
+        My first slider: $(s1)
 
-    Test: $(s1.value)
+        My second slider: $(s2)
 
-    The BUTTON: $(b)
+        Test: $(s1.value)
 
-    Type something for the list: $(t)
+        The BUTTON: $(b)
 
-    some list $(t.value)
+        Type something for the list: $(t)
 
-    ## More test:
+        some list $(t.value)
 
-    $(bla)
+        ## More test:
 
-    ## Canvas for mouse move
+        $(bla)
 
-    $(canvas)
-    """
-    return DOM.div(dom, id="testapp")
-end
+        ## Canvas for mouse move
 
-testsession(test_handler) do app
-    @test evaljs(app, js"document.getElementById('testapp').children.length") == 1
-    @test evaljs(app, js"document.getElementById('testapp').children[0].children[0].innerText") == "IS THIS REAL?"
-    @test evaljs(app, js"document.querySelectorAll('input[type=\"button\"]').length") == 1
-    @test evaljs(app, js"document.querySelectorAll('input[type=\"range\"]').length") == 2
-    trigger_keyboard_press(app, "KeyRight")
-    trigger_mouse_move(app, (0, 0))
-    @wait_for 1 == 1
-    test = query_testid(app, "test")
-    @test evaljs(app, js"$(test).innerText") == "this is test!"
-end
+        $(canvas)
+        """
+        return DOM.div(dom, id="testapp")
+    end
 
-# Start a second testsession to make sure we do the cleaning up correctly!
-testsession(test_handler) do app
-    @test evaljs(app, js"document.getElementById('testapp').children.length") == 1
-    @test evaljs(app, js"document.getElementById('testapp').children[0].children[0].innerText") == "IS THIS REAL?"
-    @test evaljs(app, js"document.querySelectorAll('input[type=\"button\"]').length") == 1
-    @test evaljs(app, js"document.querySelectorAll('input[type=\"range\"]').length") == 2
-    trigger_keyboard_press(app, "KeyRight")
-    trigger_mouse_move(app, (0, 0))
-    @wait_for 1 == 1
-    test = query_testid(app, "test")
-    @test evaljs(app, js"$(test).innerText") == "this is test!"
+    testsession(test_handler) do app
+        @test evaljs(app, js"document.getElementById('testapp').children.length") == 1
+        @test evaljs(app, js"document.getElementById('testapp').children[0].children[0].innerText") == "IS THIS REAL?"
+        @test evaljs(app, js"document.querySelectorAll('input[type=\"button\"]').length") == 1
+        @test evaljs(app, js"document.querySelectorAll('input[type=\"range\"]').length") == 2
+        trigger_keyboard_press(app, "KeyRight")
+        trigger_mouse_move(app, (0, 0))
+        @wait_for 1 == 1
+        test = query_testid(app, "test")
+        @test evaljs(app, js"$(test).innerText") == "this is test!"
+    end
+
+    # Start a second testsession to make sure we do the cleaning up correctly!
+    testsession(test_handler) do app
+        @test evaljs(app, js"document.getElementById('testapp').children.length") == 1
+        @test evaljs(app, js"document.getElementById('testapp').children[0].children[0].innerText") == "IS THIS REAL?"
+        @test evaljs(app, js"document.querySelectorAll('input[type=\"button\"]').length") == 1
+        @test evaljs(app, js"document.querySelectorAll('input[type=\"range\"]').length") == 2
+        trigger_keyboard_press(app, "KeyRight")
+        trigger_mouse_move(app, (0, 0))
+        @wait_for 1 == 1
+        test = query_testid(app, "test")
+        @test evaljs(app, js"$(test).innerText") == "this is test!"
+    end
+
 end

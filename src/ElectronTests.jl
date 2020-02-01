@@ -218,8 +218,9 @@ function Base.close(testsession::TestSession)
             rethrow(e)
         end
     finally
-        if isdefined(testsession, :window) && testsession.window.exists
-            close(testsession.window)
+        if isdefined(testsession, :window)
+            close(testsession.window.app)
+            testsession.window.exists && close(testsession.window)
         end
     end
 end
