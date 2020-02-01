@@ -152,10 +152,10 @@ Reloads the served application and waits untill all state is initialized.
 function reload!(testsession::TestSession)
     check_and_close_display()
     testsession.initialized = true # we need to put it to true, otherwise handler will block!
-    # Make 100% sure we're serving something,
-    # since otherwise, well block forever
+    # Make 100% sure we're serving something, since otherwise, well block forever
     @assert JSServe.isrunning(testsession.server)
-    response = JSServe.HTTP.get(string(testsession.url), readtimeout=3, retries=1)
+    # Extra long time out for compilation!
+    response = JSServe.HTTP.get(string(testsession.url), readtimeout=500)
     @assert response.status == 200
     testsession.initialized = false
     testsession.error_in_handler = nothing
@@ -210,7 +210,7 @@ function Base.close(testsession::TestSession)
     try
         # First request after close will still go through
         # see: https://github.com/JuliaWeb/HTTP.jl/pull/494
-        JSServe.HTTP.get(string(testsession.url))
+        JSServe.HTTP.get(string(testsession.url), readtimeout=1, retries=1)
     catch e
         if e isa JSServe.HTTP.IOError && e.e isa Base.IOError
             # Huh, so this actually did close things correctly
