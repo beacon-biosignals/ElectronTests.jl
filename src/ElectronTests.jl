@@ -122,7 +122,7 @@ function wait(testsession::TestSession; timeout=10)
     end
     while testsession.window.exists
         # We done!
-        isopen(testsession.session) && break
+        isdefined(testsession, :session) && isopen(testsession.session) && break
         if testsession.error_in_handler !== nothing
             e, backtrace = testsession.error_in_handler
             Base.show_backtrace(stderr, backtrace)
@@ -198,31 +198,14 @@ end
 Close the testsession and clean up the state!
 """
 function Base.close(testsession::TestSession)
-    try
-        if isdefined(testsession, :server)
-            Electron.close(testsession.server)
-            testsession.initialized = false
-        end
-    catch e
-        Base.showerror(stderr, e)
-        # TODO why does this error on travis? Possibly linux in general
+    if isdefined(testsession, :server)
+        Electron.close(testsession.server)
     end
-    try
-        # First request after close will still go through
-        # see: https://github.com/JuliaWeb/HTTP.jl/pull/494
-        JSServe.HTTP.get(string(testsession.url), readtimeout=1, retries=1)
-    catch e
-        if e isa JSServe.HTTP.IOError && e.e isa Base.IOError
-            # Huh, so this actually did close things correctly
-        else
-            rethrow(e)
-        end
-    finally
-        if isdefined(testsession, :window)
-            close(testsession.window.app)
-            testsession.window.exists && close(testsession.window)
-        end
+    if isdefined(testsession, :window)
+        testsession.window.app.exists && close(testsession.window.app)
+        testsession.window.exists && close(testsession.window)
     end
+    testsession.initialized = false
 end
 
 """

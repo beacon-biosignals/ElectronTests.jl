@@ -1,7 +1,9 @@
 using ElectronTests
+using JSServe
 using JSServe: @js_str, Slider, Button, TextField, linkjs, onjs
 using JSServe.DOM
 using Test
+using ElectronTests: TestSession
 using Markdown
 
 @testset "ElectronTests" begin
@@ -65,5 +67,42 @@ using Markdown
         test = query_testid(app, "test")
         @test evaljs(app, js"$(test).innerText") == "this is test!"
     end
+    @testset "errorrs" begin
+        # Test direct construction!
+        app = TestSession() do session, request
+            return DOM.div("bla")
+        end
+        close(app)
+        @test_throws ErrorException evaljs(app, js"console.log('pls error')")
+        ElectronTests.start(app)
+        response = JSServe.HTTP.get(string(app.url))
+        @test response.status == 200
+        close(app)
 
+        @test_throws ErrorException("error in handler") TestSession() do session, request
+            return error("error in handler")
+        end
+        testsession((a,b)-> DOM.div("lalal")) do app
+        end
+
+        global test_session = nothing
+        global dom = nothing
+        inline_display = JSServe.with_session() do session, req
+            global test_session = session
+            global dom = DOM.div("yay", dataTestId="yay")
+            return DOM.div(ElectronTests.JSTest, dom)
+        end;
+        html_str = sprint(io-> Base.show(io, MIME"text/html"(), inline_display))
+        eapp = ElectronTests.Electron.Application()
+        url = ElectronTests.URI("http://localhost:8081/show")
+        electron_disp = ElectronTests.Window(eapp, url)
+        @wait_for isopen(test_session)
+        app = TestSession(url, JSServe.global_application[], electron_disp, test_session)
+        app.dom = dom
+        elem = query_testid("yay")
+        evaljs(app, js"$(elem).innerText") == "yay"
+        ElectronTests.check_and_close_display()
+        @test !JSServe.isrunning(JSServe.global_application[])
+        close(app)
+    end
 end
