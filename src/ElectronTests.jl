@@ -62,7 +62,7 @@ function check_and_close_display()
     end
 end
 
-function TestSession(handler; url="0.0.0.0", port=8081, timeout=10)
+function TestSession(handler; url="0.0.0.0", port=8081, timeout=20)
     check_and_close_display()
     testsession = TestSession(URI(string("http://localhost:", port)))
     testsession.server = JSServe.Application(url, port) do session, request
@@ -77,7 +77,7 @@ function TestSession(handler; url="0.0.0.0", port=8081, timeout=10)
         end
     end
     try
-        start(testsession)
+        start(testsession; timeout=timeout)
         return testsession
     catch e
         close(testsession)
@@ -110,12 +110,12 @@ end
 
 
 """
-    wait(testsession::TestSession; timeout=10)
+    wait(testsession::TestSession; timeout=20)
 
 Wait for testsession to be fully loaded!
 Note, if you call wait on a fully loaded test
 """
-function wait(testsession::TestSession; timeout=10)
+function wait(testsession::TestSession; timeout=20)
     testsession.initialized && return true
     if !testsession.window.exists
         error("Window isn't open, can't wait for testsession to be initialized")
@@ -137,7 +137,6 @@ function wait(testsession::TestSession; timeout=10)
     if !isopen(testsession.session)
         error("Window closed before getting a message from serving request")
     end
-    tstart = time()
     on_timeout = "Timed out when waiting for JS to being loaded! Likely an error happend on the JS side, or your testsession is taking longer than $(timeout) seconds. If no error in console, try increasing timeout!"
     JSServe.wait_timeout(()->isready(testsession.session.js_fully_loaded), on_timeout, timeout)
     testsession.initialized = true
@@ -149,7 +148,7 @@ end
 
 Reloads the served application and waits untill all state is initialized.
 """
-function reload!(testsession::TestSession)
+function reload!(testsession::TestSession; timeout=20)
     check_and_close_display()
     testsession.initialized = true # we need to put it to true, otherwise handler will block!
     # Make 100% sure we're serving something, since otherwise, well block forever
@@ -160,7 +159,7 @@ function reload!(testsession::TestSession)
     testsession.initialized = false
     testsession.error_in_handler = nothing
     Electron.load(testsession.window, testsession.url)
-    wait(testsession)
+    wait(testsession; timeout=timeout)
     @assert testsession.initialized
     # Now everything is loaded and setup! At this point, we can get references to JS
     # Objects in the browser!
@@ -174,7 +173,7 @@ end
 Start the testsession and make sure everything is loaded correctly.
 Will close all connections, if any error occurs!
 """
-function JSServe.start(testsession::TestSession)
+function JSServe.start(testsession::TestSession; timeout=20)
     check_and_close_display()
     try
         if !JSServe.isrunning(testsession.server)
@@ -184,7 +183,7 @@ function JSServe.start(testsession::TestSession)
             app = Electron.Application()
             testsession.window = Window(app)
         end
-        reload!(testsession)
+        reload!(testsession; timeout=timeout)
     catch e
         close(testsession)
         rethrow(e)
