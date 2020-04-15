@@ -2,7 +2,7 @@ module ElectronTests
 
 using Electron, JSServe, URIParser
 using JSServe.HTTP: Request
-using JSServe: Session, JSObject, jsobject, Dependency, @js_str, JSCode
+using JSServe: Session, JSObject, jsobject, Dependency, @js_str, JSCode, JSReference
 import JSServe: start, evaljs
 using JSServe.Hyperscript: Node, HTMLSVG
 using JSServe.DOM
@@ -218,7 +218,7 @@ Example:
 evaljs(testsession, js"document.getElementById('the-id')")
 ```
 """
-function evaljs(testsession::TestSession, js::Union{JSCode, JSObject})
+function evaljs(testsession::TestSession, js::Union{JSObject, JSReference})
     JSServe.evaljs_value(testsession.session, js)
 end
 
