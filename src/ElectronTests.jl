@@ -191,8 +191,7 @@ function JSServe.start(testsession::TestSession; timeout=300)
             start(testsession.server)
         end
         if !isdefined(testsession, :window) || !testsession.window.exists
-            app = Electron.Application()
-            testsession.window = Window(app)
+            testsession.window = Window()
         end
         reload!(testsession; timeout=timeout)
     catch e
@@ -212,7 +211,7 @@ function Base.close(testsession::TestSession)
         Electron.close(testsession.server)
     end
     if isdefined(testsession, :window)
-        testsession.window.app.exists && close(testsession.window.app)
+        # testsession.window.app.exists && close(testsession.window.app)
         testsession.window.exists && close(testsession.window)
     end
     testsession.initialized = false
@@ -244,7 +243,7 @@ Waits for condition expression to become true and then tests it!
 macro wait_for(condition, timeout=5)
     return quote
         tstart = time()
-        while !$(esc(condition)) && (time() - tstart) < timeout
+        while !$(esc(condition)) && (time() - tstart) < $(timeout)
             sleep(0.001)
         end
         @test $(esc(condition))
