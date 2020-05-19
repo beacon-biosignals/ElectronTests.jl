@@ -52,6 +52,10 @@ mutable struct TestSession
     end
 end
 
+function Base.show(io::IO, testsession::TestSession)
+    print(io, "TestSession")
+end
+
 function check_and_close_display()
     # For some reason, when running code in Atom, it happens very easily,
     # That JSServe display server gets started!
@@ -108,6 +112,9 @@ function testsession(f, handler; kw...)
     end
 end
 
+function testsession(handler; kw...)
+    return TestSession(handler; kw...)
+end
 
 """
     wait(testsession::TestSession; timeout=300)
