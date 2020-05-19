@@ -21,7 +21,7 @@ Main construct, which will lunch an electron browser session, serving the applic
 created by `handler(testsession)::DOM.div`.
 Can be used via the testsession function:
 ```julia
-testsession(handler; url="0.0.0.0", port=8081, timeout=10)) do testsession
+testsession(handler; url="0.0.0.0", port=8081, timeout=300)) do testsession
     # test code using testsession
 end
 ```
@@ -52,6 +52,10 @@ mutable struct TestSession
     end
 end
 
+function Base.show(io::IO, testsession::TestSession)
+    print(io, "TestSession")
+end
+
 function check_and_close_display()
     # For some reason, when running code in Atom, it happens very easily,
     # That JSServe display server gets started!
@@ -62,7 +66,7 @@ function check_and_close_display()
     end
 end
 
-function TestSession(handler; url="0.0.0.0", port=8081, timeout=20)
+function TestSession(handler; url="0.0.0.0", port=8081, timeout=300)
     check_and_close_display()
     testsession = TestSession(URI(string("http://localhost:", port)))
     testsession.server = JSServe.Application(url, port) do session, request
@@ -87,9 +91,9 @@ end
 
 """
 ```julia
-    testsession(f, handler; url="0.0.0.0", port=8081, timeout=10)
+    testsession(f, handler; url="0.0.0.0", port=8081, timeout=300)
 
-testsession(handler; url="0.0.0.0", port=8081, timeout=10)) do testsession
+testsession(handler; url="0.0.0.0", port=8081, timeout=300)) do testsession
     # test code using testsession
 end
 ```
@@ -108,18 +112,22 @@ function testsession(f, handler; kw...)
     end
 end
 
+function testsession(handler; kw...)
+    return TestSession(handler; kw...)
+end
 
 """
-    wait(testsession::TestSession; timeout=20)
+    wait(testsession::TestSession; timeout=300)
 
 Wait for testsession to be fully loaded!
 Note, if you call wait on a fully loaded test
 """
-function wait(testsession::TestSession; timeout=20)
+function wait(testsession::TestSession; timeout=300)
     testsession.initialized && return true
     if !testsession.window.exists
         error("Window isn't open, can't wait for testsession to be initialized")
     end
+    Electron.toggle_devtools(testsession.window)
     while testsession.window.exists
         # We done!
         isdefined(testsession, :session) && isopen(testsession.session) && break
@@ -138,7 +146,17 @@ function wait(testsession::TestSession; timeout=20)
         error("Window closed before getting a message from serving request")
     end
     on_timeout = "Timed out when waiting for JS to being loaded! Likely an error happend on the JS side, or your testsession is taking longer than $(timeout) seconds. If no error in console, try increasing timeout!"
-    JSServe.wait_timeout(()->isready(testsession.session.js_fully_loaded), on_timeout, timeout)
+    tstart = time()
+    while time() - tstart < timeout
+        if isready(testsession.session.js_fully_loaded)
+            # Error on js during init! We can't continue like this :'(
+            if testsession.session.init_error[] !== nothing
+                throw(testsession.session.init_error[])
+            end
+            break
+        end
+        sleep(0.01)
+    end
     testsession.initialized = true
     return true
 end
@@ -148,7 +166,7 @@ end
 
 Reloads the served application and waits untill all state is initialized.
 """
-function reload!(testsession::TestSession; timeout=20)
+function reload!(testsession::TestSession; timeout=300)
     check_and_close_display()
     testsession.initialized = true # we need to put it to true, otherwise handler will block!
     # Make 100% sure we're serving something, since otherwise, well block forever
@@ -173,15 +191,14 @@ end
 Start the testsession and make sure everything is loaded correctly.
 Will close all connections, if any error occurs!
 """
-function JSServe.start(testsession::TestSession; timeout=20)
+function JSServe.start(testsession::TestSession; timeout=300)
     check_and_close_display()
     try
         if !JSServe.isrunning(testsession.server)
             start(testsession.server)
         end
         if !isdefined(testsession, :window) || !testsession.window.exists
-            app = Electron.Application()
-            testsession.window = Window(app)
+            testsession.window = Window()
         end
         reload!(testsession; timeout=timeout)
     catch e
@@ -201,7 +218,7 @@ function Base.close(testsession::TestSession)
         Electron.close(testsession.server)
     end
     if isdefined(testsession, :window)
-        testsession.window.app.exists && close(testsession.window.app)
+        # testsession.window.app.exists && close(testsession.window.app)
         testsession.window.exists && close(testsession.window)
     end
     testsession.initialized = false
@@ -230,9 +247,10 @@ end
     wait_test(condition)
 Waits for condition expression to become true and then tests it!
 """
-macro wait_for(condition)
+macro wait_for(condition, timeout=5)
     return quote
-        while !$(esc(condition))
+        tstart = time()
+        while !$(esc(condition)) && (time() - tstart) < $(timeout)
             sleep(0.001)
         end
         @test $(esc(condition))

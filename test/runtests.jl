@@ -5,9 +5,21 @@ using JSServe.DOM
 using Test
 using ElectronTests: TestSession
 using Markdown
+using JSServe: JSException
+
+function test_handler(session, req)
+    div = DOM.div("error")
+    JSServe.onload(session, div, js"function (div){
+        throw new Error('error')
+    }")
+    return div
+end
+
+@test_throws JSException TestSession(test_handler, timeout=3000, port=8666)
+# Make sure port is free and session is correctly cleaned up!
+@test_throws JSException TestSession(test_handler, timeout=3000, port=8666)
 
 @testset "ElectronTests" begin
-
     function test_handler(session, req)
         s1 = Slider(1:100)
         s2 = Slider(1:100)
