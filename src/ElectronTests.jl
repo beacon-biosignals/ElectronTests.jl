@@ -2,8 +2,8 @@ module ElectronTests
 
 using Electron, JSServe, URIParser
 using JSServe.HTTP: Request
-using JSServe: Session, JSObject, jsobject, Dependency, @js_str, JSCode, JSReference
-import JSServe: start, evaljs
+using JSServe: Session, Dependency, @js_str, JSCode
+import JSServe: start, evaljs, evaljs_value
 using JSServe.Hyperscript: Node, HTMLSVG
 using JSServe.DOM
 using Base: RefValue
@@ -33,24 +33,23 @@ mutable struct TestSession
     url::URI
     initialized::Bool
     error_in_handler::Any
-    server::JSServe.Application
+    server::JSServe.Server
     window::Electron.Window
     session::Session
     dom::Node{HTMLSVG}
     request::Request
-    # Library to run test commands
-    js_library::JSObject
 
     function TestSession(url::URI)
         return new(url, false, nothing)
     end
 
-    function TestSession(url::URI, server::JSServe.Application, window::Electron.Window, session::Session)
+    function TestSession(url::URI, server::JSServe.Server, window::Electron.Window, session::Session)
         testsession = new(url, true, nothing, server, window, session)
-        testsession.js_library = jsobject(session, js"$JSTest")
         return testsession
     end
 end
+
+JSServe.session(testsession::TestSession) = testsession.session
 
 function Base.show(io::IO, testsession::TestSession)
     print(io, "TestSession")
@@ -60,16 +59,16 @@ function check_and_close_display()
     # For some reason, when running code in Atom, it happens very easily,
     # That JSServe display server gets started!
     # Maybe better to PR an option in JSServe to prohibit starting it in the first place
-    if isassigned(JSServe.global_application) && JSServe.isrunning(JSServe.global_application[])
+    if isassigned(JSServe.GLOBAL_SERVER) && JSServe.isrunning(JSServe.GLOBAL_SERVER[])
         @warn "closing JSServe display server, which interfers with testing!"
-        close(JSServe.global_application[])
+        close(JSServe.GLOBAL_SERVER[])
     end
 end
 
 function TestSession(handler; url="0.0.0.0", port=8081, timeout=300)
     check_and_close_display()
     testsession = TestSession(URI(string("http://localhost:", port)))
-    testsession.server = JSServe.Application(url, port) do session, request
+    testsession.server = JSServe.Server(url, port) do session, request
         try
             dom = handler(session, request)
             testsession.dom = dom
@@ -179,9 +178,6 @@ function reload!(testsession::TestSession; timeout=300)
     Electron.load(testsession.window, testsession.url)
     wait(testsession; timeout=timeout)
     @assert testsession.initialized
-    # Now everything is loaded and setup! At this point, we can get references to JS
-    # Objects in the browser!
-    testsession.js_library = jsobject(testsession.session, js"$JSTest")
     return true
 end
 
@@ -235,10 +231,6 @@ Example:
 evaljs(testsession, js"document.getElementById('the-id')")
 ```
 """
-function evaljs(testsession::TestSession, js::Union{JSObject, JSReference})
-    JSServe.evaljs_value(testsession.session, js)
-end
-
 function evaljs(testsession::TestSession, js::JSCode)
     JSServe.evaljs_value(testsession.session, js)
 end
@@ -257,10 +249,6 @@ macro wait_for(condition, timeout=5)
     end
 end
 
-function JSServe.jsobject(testsession::TestSession, js)
-    return jsobject(testsession.session, js)
-end
-
 """
     trigger_keyboard_press(testsession::TestSession, code::String, element=nothing)
 Triggers a keyboard press on `element`! If element is `nothing`, the event will be
@@ -268,7 +256,7 @@ triggered for the whole `document`!
 Find out the key code string to pass at `http://keycode.info/`
 """
 function trigger_keyboard_press(testsession::TestSession, code::String, element=nothing)
-    testsession.js_library.trigger_keyboard_press(code, element)
+    JSTest.trigger_keyboard_press(testsession.session, code, element)
 end
 
 """
@@ -277,7 +265,7 @@ Triggers a MouseMove event! If element == nothing, it will try to trigger on any
 found in the DOM.
 """
 function trigger_mouse_move(testsession::TestSession, position::Tuple{Int, Int}, element=nothing)
-    testsession.js_library.trigger_mouse_move(position, element)
+    JSTest.trigger_mouse_move(testsession.session, position, element)
 end
 
 """
@@ -293,7 +281,7 @@ end
 Returns a JSObject representing the object found for `id`.
 """
 function query_testid(testsession::TestSession, id::String)
-    return jsobject(testsession, query_testid(id))
+    return evaljs_value(testsession, query_testid(id))
 end
 
 export @wait_for, evaljs, testsession, trigger_keyboard_press, trigger_mouse_move, query_testid
