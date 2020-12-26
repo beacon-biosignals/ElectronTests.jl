@@ -1,7 +1,7 @@
 name = "ElectronTests"
 uuid = "fa9e6d27-338f-4c48-a526-3b082c2df35e"
 authors = ["Simon Danisch", "Beacon Biosignals"]
-version = "0.1.11"
+version = "0.2.0"
 
 [deps]
 Electron = "a1bb12fb-d4d1-54b4-b10a-ee7951ef7ad3"
