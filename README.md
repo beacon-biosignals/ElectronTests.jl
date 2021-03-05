@@ -1,6 +1,6 @@
 # ElectronTests
 
-[![Build Status](https://travis-ci.com/beacon-biosignals/ElectronTests.jl.svg?branch=master)](https://travis-ci.com/beacon-biosignals/ElectronTests.jl)
+[![CI](https://github.com/beacon-biosignals/ElectronTests.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/beacon-biosignals/ElectronTests.jl/actions/workflows/CI.yml)
 [![Codecov](https://codecov.io/gh/beacon-biosignals/ElectronTests.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/beacon-biosignals/ElectronTests.jl)
 
 Build for and with JSServe!
